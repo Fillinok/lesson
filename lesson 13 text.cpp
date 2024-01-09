@@ -247,7 +247,7 @@ private:
 #define RUN_TEST(expr) RunTest(expr,#expr)
 #define ASSERT(expr) Assert((expr), __FILE__ , __FUNCTION__ , __LINE__ )
 #define ASSERT_EQUAL(expr1,expr2) AssertEqual (expr1,expr2, __FILE__ , __FUNCTION__ , __LINE__)
-#define ASSERT_HINT(expr,hint) AssertHint (expr,__FILE__ , __FUNCTION__ , __LINE__,hint)
+#define ASSERT_HINT(expr,hint) AssertHint ((expr),__FILE__ , __FUNCTION__ , __LINE__,hint)
 #define ASSERT_EQUAL_HINT(expr1,expr2,hint) AssertEqualHint (expr1,expr2,__FILE__ , __FUNCTION__ , __LINE__,hint)
 
 
@@ -294,14 +294,42 @@ void AssertEqualHint (const T& t, const U& u, const string& file, const string& 
 }
 //*/
 
-
 // -------- Начало модульных тестов поисковой системы ----------
 
 
 
 
 
+
 // Тест проверяет, что поисковая система исключает стоп-слова при добавлении документов
+
+void MatchDocumentAlwaysReturnActualStatus() {
+    const int doc_id_1 = 1, doc_id_2 = 2, doc_id_3 = 3, doc_id_4 = 4;
+    const string content_1 = "cat the city"s, content_2 = " white cat in box"s, content_3 = "dog sleep in box"s, content_4 = "hello world";
+    const vector<int> ratings_1 = {1, 2, 3};
+    const vector<int> ratings_2 = {2, 3, 8};
+    const vector<int> ratings_3 = {-6, 3, 0};
+    const vector<int> ratings_4 = {-6, 3, 0};
+    {
+        SearchServer server;        
+        server.AddDocument(doc_id_1, content_1, DocumentStatus::BANNED, ratings_1);
+        server.AddDocument(doc_id_2, content_2, DocumentStatus::IRRELEVANT, ratings_2);
+        server.AddDocument(doc_id_3, content_3, DocumentStatus::ACTUAL, ratings_3);
+        server.AddDocument(doc_id_4, content_4, DocumentStatus::ACTUAL, ratings_4);
+        const auto result_1 = server.MatchDocument("cat",1);    
+        ASSERT_EQUAL_HINT(get<DocumentStatus>(result_1) == DocumentStatus::BANNED,true,"not good"s);
+        const auto result_2 = server.MatchDocument("cat",2);    
+        ASSERT_EQUAL_HINT(get<DocumentStatus>(result_2) == DocumentStatus::IRRELEVANT,true,"not good"s);
+        const auto result_3 = server.MatchDocument("cat",3);    
+        ASSERT_EQUAL_HINT(get<DocumentStatus>(result_3) == DocumentStatus::ACTUAL,true,"not good"s);
+        const auto result_4 = server.MatchDocument("hello -world",4);
+        vector<string> as_ht =get<vector<string>>(result_4);
+        ASSERT_HINT(as_ht.empty(),"not good"s);
+    }
+    
+}
+
+
 void TestExcludeStopWordsFromAddedDocumentContent() {
     const int doc_id = 42;
     const string content = "cat in the city"s;
@@ -345,14 +373,13 @@ void MinusWordsAreNotParsed(){
     const vector<int> ratings_2 = {2, 3, 8};
     const vector<int> ratings_3 = {-6, 3, 0};
     {
-        SearchServer server;
-        server.SetStopWords("in the"s);
+        SearchServer server;        
         server.AddDocument(doc_id_1, content_1, DocumentStatus::ACTUAL, ratings_1);
         server.AddDocument(doc_id_2, content_2, DocumentStatus::ACTUAL, ratings_2);
         server.AddDocument(doc_id_3, content_3, DocumentStatus::ACTUAL, ratings_3);
-        const auto result = server.FindTopDocuments("box -cat");    
-        ASSERT_EQUAL_HINT(result.size(),1,"Search have minusword"s);
-        ASSERT(!result.empty());
+        const auto result_1 = server.FindTopDocuments("box -cat");    
+        ASSERT_EQUAL_HINT(result_1.size(),1,"Answer have doc with minusword"s);
+        ASSERT_EQUAL_HINT(result_1[0].id,doc_id_3,"Answer have doс with minusword"s);        
     }
 }
 
@@ -382,11 +409,52 @@ void TestRating(){
         server.AddDocument(doc_id_2, content_2, DocumentStatus::ACTUAL, ratings_2);
         server.AddDocument(doc_id_3, content_3, DocumentStatus::ACTUAL, ratings_3);
         vector<Document> result = server.FindTopDocuments(query);        
-        ASSERT_EQUAL_HINT(result[0].rating,av_rat_2,"Rating 1 wrong"s);           
-        ASSERT_EQUAL_HINT(result[1].rating,av_rat_1,"Rating 2 wrong"s);
+        ASSERT_EQUAL_HINT(result[0].rating,av_rat_2,"Rating 2 wrong"s);           
+        ASSERT_EQUAL_HINT(result[1].rating,av_rat_1,"Rating 1 wrong"s);
         ASSERT_EQUAL_HINT(result[2].rating,av_rat_3,"Rating 3 wrong"s);        
     }
     
+}
+
+void DocumentPredicateIsIgnored () {    
+    const int doc_id_1 = 10, doc_id_2 = 20, doc_id_3 = 30;
+    const string content_1 = "rat in the box"s, content_2 = "white cat in box"s, content_3 = "dog sleep in box"s;
+    const vector<int> ratings_1 = {1, 2, 3};
+    const vector<int> ratings_2 = {2, 3, 7};
+    const vector<int> ratings_3 = {-6, 3, 0};    
+    DocumentStatus status_1 = DocumentStatus::ACTUAL;
+    DocumentStatus status_2 = DocumentStatus::IRRELEVANT;
+    DocumentStatus status_3 = DocumentStatus::BANNED;
+    string query = "box"s;    
+    {
+        SearchServer server;               
+        server.AddDocument(doc_id_1, content_1, status_1, ratings_1);
+        server.AddDocument(doc_id_2, content_2, status_2, ratings_2);
+        server.AddDocument(doc_id_3, content_3, status_3, ratings_3);
+        vector<Document> result_1 = server.FindTopDocuments(query,DocumentStatus::BANNED);        
+        ASSERT_EQUAL_HINT(result_1[0].id,doc_id_3,"Not BANNED"s);  
+        vector<Document> result_2 = server.FindTopDocuments(query,DocumentStatus::IRRELEVANT);
+        ASSERT_EQUAL_HINT(result_2[0].id,doc_id_2,"Not IRRELEVANT"s);
+        vector<Document> result_3 = server.FindTopDocuments(query,DocumentStatus::ACTUAL);
+        ASSERT_EQUAL_HINT(result_3[0].id,doc_id_1,"Not ACTUAL"s);
+    }    
+}
+void OversimplifiedRelevanceCalculation() {
+    const int doc_id_1 = 10, doc_id_2 = 20, doc_id_3 = 30;
+    const string content_1 = "rat in the box"s, content_2 = "white cat in box"s, content_3 = "dog sleep in box"s;
+    const vector<int> ratings_1 = {1, 2, 3};
+    const vector<int> ratings_2 = {2, 3, 7};
+    const vector<int> ratings_3 = {-6, 3, 0};    
+    {
+        SearchServer server;               
+        server.AddDocument(doc_id_1, content_1, DocumentStatus::ACTUAL, ratings_1);
+        server.AddDocument(doc_id_2, content_2, DocumentStatus::ACTUAL, ratings_2);
+        server.AddDocument(doc_id_3, content_3, DocumentStatus::ACTUAL, ratings_3);
+        vector<Document> result = server.FindTopDocuments("box"s);        
+        ASSERT_EQUAL_HINT(result[0].relevance,log(3/3)*0.25,"Rating 2 wrong"s);           
+        ASSERT_EQUAL_HINT(result[1].relevance,log(3/3)*0.25,"Rating 1 wrong"s);
+        ASSERT_EQUAL_HINT(result[2].relevance,log(3/3)*0.25,"Rating 3 wrong"s); 
+    }
 }
 
 /*
@@ -399,7 +467,10 @@ void TestSearchServer() {
     RUN_TEST(TestExcludeStopWordsFromAddedDocumentContent);
     RUN_TEST(TestAddDocument);    
     RUN_TEST(MinusWordsAreNotParsed);
-    //RUN_TEST(TestRating);
+    RUN_TEST(TestRating);
+    RUN_TEST(DocumentPredicateIsIgnored);
+    RUN_TEST(MatchDocumentAlwaysReturnActualStatus);
+    RUN_TEST(OversimplifiedRelevanceCalculation);
     // Не забудьте вызывать остальные тесты здесь
 }
 
