@@ -8,7 +8,7 @@
 #include <string>
 #include <utility>
 #include <vector>
-
+#include <deque>
 using namespace std;
 
 const int MAX_RESULT_DOCUMENT_COUNT = 5;
@@ -360,29 +360,97 @@ auto Paginate(const Container& c, size_t page_size) {
 
 class RequestQueue {
 public:
-    explicit RequestQueue(const SearchServer& search_server) {
-        // напишите реализацию
+    explicit RequestQueue(const SearchServer& search_server) 
+    : search_server_(search_server)
+    {
+        //search_server_=search_server;
     }
-    // сделаем "обёртки" для всех методов поиска, чтобы сохранять результаты для нашей статистики
+    
     template <typename DocumentPredicate>
     vector<Document> AddFindRequest(const string& raw_query, DocumentPredicate document_predicate) {
-        // напишите реализацию
+        vector<Document> r = search_server_.FindTopDocuments(raw_query, document_predicate);
+        if(!r.empty())
+        {
+            if(requests_.size() == min_in_day_)
+            {
+                requests_.pop_front();
+            }
+            requests_.push_back({true,r});
+        }
+        else
+        {
+            if(requests_.size() == min_in_day_)
+            {
+                requests_.pop_front();
+            }
+            requests_.push_back({false,r});
+        }       
+        return r;       
     }
+    
     vector<Document> AddFindRequest(const string& raw_query, DocumentStatus status) {
-        // напишите реализацию
+        vector<Document> r = search_server_.FindTopDocuments(raw_query, status);
+        if(!r.empty())
+        {
+            if(requests_.size() == min_in_day_)
+            {
+                requests_.pop_front();
+            }
+            requests_.push_back({true,r});
+        }
+        else
+        {
+            if(requests_.size() == min_in_day_)
+            {
+                requests_.pop_front();
+            }
+            requests_.push_back({false,r});
+        }       
+        return r;        
     }
+    
     vector<Document> AddFindRequest(const string& raw_query) {
-        // напишите реализацию
+        vector<Document> r = search_server_.FindTopDocuments(raw_query);       
+        if(!r.empty())
+        {
+            if(requests_.size() == min_in_day_)
+            {
+                requests_.pop_front();
+            }
+            requests_.push_back({true,r});
+        }
+        else
+        {
+            if(requests_.size() == min_in_day_)
+            {
+                requests_.pop_front();
+            }
+            requests_.push_back({false,r});
+        }       
+        return r;        
     }
+    
     int GetNoResultRequests() const {
-        // напишите реализацию
+    int result = 0;
+    for(auto x: requests_)
+    {
+        if (x.empty == false)
+        {        
+            result++;           
+        }     
+        
+    }
+        return result;
     }
 private:
     struct QueryResult {
+        bool empty;
+        vector<Document> result_search;
         // определите, что должно быть в структуре
     };
     deque<QueryResult> requests_;
     const static int min_in_day_ = 1440;
+    const SearchServer& search_server_;
     // возможно, здесь вам понадобится что-то ещё
 }; 
 
