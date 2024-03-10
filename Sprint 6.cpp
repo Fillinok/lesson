@@ -280,7 +280,7 @@ public:
     // Разыменовывать этот итератор нельзя - попытка разыменования приведёт к неопределённому поведению
     [[nodiscard]] ConstIterator cbefore_begin() const noexcept {
         // Реализуйте самостоятельно
-        return ConstIterator{&head_};
+        return ConstIterator(const_cast<Node*>(&head_));
     }
 
     // Возвращает константный итератор, указывающий на позицию перед первым элементом односвязного списка.
@@ -293,7 +293,7 @@ public:
     Iterator InsertAfter(ConstIterator pos, const Type& value) {
         pos.node_ = new Node(value,pos.node_);
         ++size_;
-        return pos.node_;
+        return Iterator(const_cast<Node*>(pos.node_));
     }
     
      
@@ -302,7 +302,7 @@ public:
         pos.node_ = pos.node_->next_node;
         delete  temp;
         --size_;
-        return pos.node_;
+        return Iterator(const_cast<Node*>(pos.node_));
     }
     
 
