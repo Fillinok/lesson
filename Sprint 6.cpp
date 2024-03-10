@@ -147,6 +147,7 @@ public:
 
     SingleLinkedList(const SingleLinkedList& other) {
         
+        size_=0;
         SingleLinkedList tmp;        
         for (auto i = other.begin(); i != other.end(); ++i) {
             tmp.PushFront(*i);
@@ -190,11 +191,7 @@ public:
     void PushFront(const Type& value) {
         head_.next_node = new Node(value, head_.next_node);
         ++size_;
-    }
-
-    
-    
-    
+    }   
     
     // Очищает список за время O(N)
     void Clear() noexcept {
@@ -290,19 +287,37 @@ public:
         return ConstIterator{&head_};
     }
     
-    Iterator InsertAfter(ConstIterator pos, const Type& value) {
-        pos.node_ = new Node(value,pos.node_);
-        ++size_;
-        return Iterator(const_cast<Node*>(pos.node_));
+    Iterator InsertAfter(ConstIterator pos, const Type& value) 
+    {
+        if(pos == before_begin())
+        {
+            PushFront(value);
+            return begin();
+        }
+        else
+        {
+            Node* temp = new Node(value,pos.node_->next_node);
+            pos.node_->next_node = temp;
+            ++size_;            
+            return Iterator(const_cast<Node*>(temp));
+        }        
     }
     
      
     Iterator EraseAfter(ConstIterator pos) noexcept {        
-        Node* temp = pos.node_;
-        pos.node_ = pos.node_->next_node;
-        delete  temp;
-        --size_;
-        return Iterator(const_cast<Node*>(pos.node_));
+        if (pos == before_begin())
+        {
+            PopFront();
+            return begin(); 
+        }
+        else
+        {
+            Node* temp_it = pos.node_->next_node;
+            pos.node_->next_node = temp_it->next_node;
+            delete  temp_it;
+            --size_;
+            return Iterator(const_cast<Node*>(pos.node_->next_node));
+        }        
     }
     
 
@@ -408,7 +423,7 @@ void Test4() {
     {  // Вставка в пустой список
         {
             SingleLinkedList<int> lst;
-            const auto inserted_item_pos = lst.InsertAfter(lst.before_begin(), 123);
+            const auto inserted_item_pos = lst.InsertAfter(lst.before_begin(), 123);            
             assert((lst == SingleLinkedList<int>{123}));
             assert(inserted_item_pos == lst.begin());
             assert(*inserted_item_pos == 123);
@@ -423,8 +438,7 @@ void Test4() {
             assert(inserted_item_pos != lst.end());
             assert(*inserted_item_pos == 123);
             assert((lst == SingleLinkedList<int>{123, 1, 2, 3}));
-
-            inserted_item_pos = lst.InsertAfter(lst.begin(), 555);
+            inserted_item_pos = lst.InsertAfter(lst.begin(), 555);                       
             assert(++SingleLinkedList<int>::Iterator(lst.begin()) == inserted_item_pos);
             assert(*inserted_item_pos == 555);
             assert((lst == SingleLinkedList<int>{123, 555, 1, 2, 3}));
@@ -454,7 +468,7 @@ void Test4() {
         // Как только обнулится, конструктор копирования выбросит исключение
         int* countdown_ptr = nullptr;
     };
-
+    
     // Проверка обеспечения строгой гарантии безопасности исключений
     {
         bool exception_was_thrown = false;
@@ -472,7 +486,7 @@ void Test4() {
         }
         assert(exception_was_thrown);
     }
-
+    
     // Удаление элементов после указанной позиции
     {
         {
@@ -483,9 +497,9 @@ void Test4() {
             assert(item_after_erased == lst.begin());
         }
         {
-            SingleLinkedList<int> lst{1, 2, 3, 4};
-            const auto item_after_erased = lst.EraseAfter(lst.cbegin());
-            assert((lst == SingleLinkedList<int>{1, 3, 4}));
+            SingleLinkedList<int> lst{1, 2, 3, 4};            
+            const auto item_after_erased = lst.EraseAfter(lst.cbegin());            
+            assert((lst == SingleLinkedList<int>{1, 3, 4}));            
             assert(item_after_erased == (++lst.begin()));
         }
         {
